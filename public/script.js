@@ -18,8 +18,8 @@ const configuration = {
 
 // Функция для инициализации WebRTC и подключения к WebSocket
 startBtn.addEventListener("click", async () => {
-  // Инициализация WebSocket
-  socket = new WebSocket(`ws://${window.location.host}`);
+  // Инициализация WebSocket с безопасным протоколом wss://
+  socket = new WebSocket(`wss://${window.location.host}`);
 
   // Захват микрофона пользователя
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
