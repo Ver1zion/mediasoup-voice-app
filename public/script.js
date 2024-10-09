@@ -7,7 +7,6 @@ let localStream;
 let peerConnection;
 let socket;
 
-// Конфигурация для STUN сервера (нужен для работы WebRTC)
 const configuration = {
   iceServers: [
     {
@@ -16,71 +15,70 @@ const configuration = {
   ],
 };
 
-// Функция для инициализации WebRTC и подключения к WebSocket
+// Инициализация WebRTC и подключение к WebSocket
 startBtn.addEventListener("click", async () => {
-  // Инициализация WebSocket
   socket = new WebSocket(`wss://${window.location.host}`);
 
-  // Захват микрофона пользователя
   localStream = await navigator.mediaDevices.getUserMedia({ audio: true });
 
-  // Инициализация PeerConnection для WebRTC
-  peerConnection = new RTCPeerConnection(configuration);
-  localStream.getTracks().forEach((track) => peerConnection.addTrack(track, localStream));
+  localStream.getTracks().forEach(track => {
+    console.log(`Track kind: ${track.kind}, enabled: ${track.enabled}`);
+  });
 
-  // Обработка ICE кандидатов
+  peerConnection = new RTCPeerConnection(configuration);
+  localStream.getTracks().forEach(track => peerConnection.addTrack(track, localStream));
+
   peerConnection.onicecandidate = (event) => {
     if (event.candidate) {
+      console.log("Sending ICE candidate: ", event.candidate);
       if (socket.readyState === WebSocket.OPEN) {
-        // Отправляем ICE кандидата, если соединение открыто
         socket.send(JSON.stringify({ candidate: event.candidate }));
       } else {
-        // Логируем ошибку, если соединение еще не установлено
         console.error("WebSocket не готов к отправке, статус: ", socket.readyState);
       }
     }
   };
 
-  // Обработка полученного медиапотока
   peerConnection.ontrack = (event) => {
+    console.log('Received remote track');
     const audioElement = document.createElement("audio");
     audioElement.srcObject = event.streams[0];
-    audioElement.play();
+    audioElement.autoplay = true;
+    document.body.appendChild(audioElement); // добавляем элемент на страницу
   };
 
-  // Ожидаем, пока WebSocket соединение станет OPEN
   socket.onopen = async () => {
     console.log("WebSocket соединение установлено");
 
-    // Создание SDP предложения (offer) после установления WebSocket соединения
     const offer = await peerConnection.createOffer();
     await peerConnection.setLocalDescription(offer);
+    console.log("Sending offer: ", peerConnection.localDescription.sdp);
     socket.send(JSON.stringify({ offer }));
   };
 
-  // Обработка сообщений WebSocket
   socket.onmessage = async (message) => {
     const data = JSON.parse(message.data);
 
-    // Обработка ICE кандидатов
     if (data.candidate) {
+      console.log("Received ICE candidate: ", data.candidate);
       await peerConnection.addIceCandidate(new RTCIceCandidate(data.candidate));
     }
 
-    // Обработка SDP предложений (offer/answer)
     if (data.offer) {
+      console.log("Received offer: ", data.offer.sdp);
       await peerConnection.setRemoteDescription(new RTCSessionDescription(data.offer));
       const answer = await peerConnection.createAnswer();
       await peerConnection.setLocalDescription(answer);
+      console.log("Sending answer: ", peerConnection.localDescription.sdp);
       socket.send(JSON.stringify({ answer }));
     }
 
     if (data.answer) {
+      console.log("Received answer: ", data.answer.sdp);
       await peerConnection.setRemoteDescription(new RTCSessionDescription(data.answer));
     }
   };
 
-  // Обновление UI
   statusDiv.innerText = "Подключено";
   startBtn.disabled = true;
   stopBtn.disabled = false;
