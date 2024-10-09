@@ -13,23 +13,27 @@ const server = http.createServer(app);
 // Создание WebSocket сервера поверх HTTP сервера
 const wss = new WebSocket.Server({ server });
 
+// Идентификатор для каждого клиента
+let clientId = 0;
+
 // Логирование подключений и сигналов от клиентов
 wss.on('connection', (ws) => {
-    console.log('Пользователь подключился');
+    ws.id = clientId++;
+    console.log(`Пользователь ${ws.id} подключился`);
 
     // Получение сигналов от клиентов (например, предложения или ответы WebRTC)
     ws.on('message', (message) => {
-        console.log('Сообщение:', message);
+        console.log(`Сообщение от ${ws.id}:`, message);
         // Отправляем сигнал другим клиентам
         wss.clients.forEach((client) => {
             if (client !== ws && client.readyState === WebSocket.OPEN) {
-                client.send(message);
+                client.send(JSON.stringify({ message: JSON.parse(message), senderId: ws.id })); // Добавляем идентификатор отправителя
             }
         });
     });
 
     ws.on('close', () => {
-        console.log('Пользователь отключился');
+        console.log(`Пользователь ${ws.id} отключился`);
     });
 });
 
